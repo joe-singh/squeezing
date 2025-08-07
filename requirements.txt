@@ -1,0 +1,20 @@
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.21.0
+pillow>=8.0.0
+matplotlib>=3.5.0
+scipy>=1.7.0
+scikit-learn>=1.0.0
+tqdm>=4.62.0
+diffusers>=0.20.0
+accelerate>=0.20.0
+pytorch-fid>=0.3.0
+torch-fidelity>=0.3.0
+transformers>=4.20.0
+datasets>=2.0.0 
+
+# Install from GitHub repository
+git+https://github.com/toshas/torch-fidelity.git@master#egg=torch-fidelity
+
+# Regular PyPI package
+wandb

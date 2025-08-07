@@ -1477,7 +1477,7 @@ config = {
     "pca_samples": 50000,  # Number of samples for PCA calculation
 
     # Training
-    "num_epochs":  30,
+    "num_epochs":  1,
     "gradient_accumulation_steps": 1,
     "learning_rate": 1e-4,
     "lr_warmup_steps": 500,

@@ -12,6 +12,18 @@ from scipy import linalg
 import random
 import copy
 from sklearn.neighbors import NearestNeighbors
+import wandb 
+
+# Fail early if WANDB_API_KEY not set
+if not os.environ.get("WANDB_API_KEY"):
+    print(
+        "Error: WANDB_API_KEY not found in environment.\n"
+        "Set it with:\n"
+        "    export WANDB_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n"
+        "or run:\n"
+        "    wandb login"
+    )
+    print("Continuing without wandb logging")
 
 # Import from diffusers
 from diffusers import UNet2DModel, DDPMScheduler, DDPMPipeline
@@ -1022,6 +1034,15 @@ def train_loop(config):
         project_dir=os.path.join(config["output_dir"], "logs"),
     )
 
+    if accelerator.is_main_process:
+        wandb.init(
+            project="squeezing",
+            name=config.get("run_name", None),
+            config=config
+        )
+        wandb.define_metric("train/*", step_metric="train_step")
+        wandb.define_metric("eval/*", step_metric="eval_step")
+
     # Dataset
     transform = transforms.Compose([
         transforms.Resize((config["image_size"], config["image_size"])),
@@ -1132,6 +1153,10 @@ def train_loop(config):
         model, optimizer, dataloader, lr_scheduler
     )
 
+    # WandB watch model
+    if accelerator.is_main_process:
+        wandb.watch(accelerator.unwrap_model(model), log=None)
+
     # Create EMA model if enabled
     ema_model = None
     if config.get("ema_decay", 0) > 0:
@@ -1206,9 +1231,14 @@ def train_loop(config):
                     ema_model.step(model.parameters())
 
             progress_bar.update(1)
-            logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
+            logs = {"train/loss": loss.detach().item(), "train/lr": lr_scheduler.get_last_lr()[0]}
             progress_bar.set_postfix(**logs)
             accelerator.log(logs, step=global_step)
+
+            # WandB per step log
+            if accelerator.is_main_process:
+                wandb.log({**logs, "train_step": global_step}, commit=True)
+
             global_step += 1
 
         progress_bar.close()
@@ -1246,6 +1276,19 @@ def train_loop(config):
                 device=accelerator.device,
             )
 
+            # WandB: log sample grid and denoising GIF if present
+            if accelerator.is_main_process:
+
+                grid_path = os.path.join(config["output_dir"], "samples", f"grid_epoch{epoch + 1}.png")
+                eval_step = epoch + 1
+                if os.path.exists(grid_path):
+                    wandb.log({"eval/samples_grid": wandb.Image(grid_path),"eval_step": eval_step})
+
+                gif_path = os.path.join(config["output_dir"], "denoising", f"traj_epoch{epoch + 1}.gif")
+                if os.path.exists(gif_path):
+                    wandb.log({"eval/denoising_traj": wandb.Video(gif_path),"eval_step": eval_step})
+
+
             # Evaluate with chosen metric
             if config["evaluation_metric"] == "fid":
                 score = evaluate_fid_score(
@@ -1258,6 +1301,9 @@ def train_loop(config):
                     device=accelerator.device
                 )
                 accelerator.log({"fid_score": score}, step=epoch)
+                if accelerator.is_main_process:
+                    wandb.log({"eval/fid": score, "eval_step": eval_step})
+
             elif config["evaluation_metric"] == "is":
                 mean_is, std_is = evaluate_inception_score(
                     model=accelerator.unwrap_model(model),
@@ -1268,6 +1314,9 @@ def train_loop(config):
                     device=accelerator.device
                 )
                 accelerator.log({"inception_score": mean_is, "is_std": std_is}, step=epoch)
+                if accelerator.is_main_process:
+                    wandb.log({"eval/is_mean": mean_is, "eval/is_std": std_is, "eval_step": eval_step})
+
             elif config["evaluation_metric"] == "pr":
                  precision, recall = evaluate_pr_score(
                     model=accelerator.unwrap_model(model),
@@ -1279,6 +1328,8 @@ def train_loop(config):
                     device=accelerator.device
                 )
                  accelerator.log({"precision": precision, "recall": recall}, step=epoch)
+                 if accelerator.is_main_process:
+                     wandb.log({"eval/precision": precision, "eval/recall": recall, "eval_step": eval_step})
 
 
             # If EMA was used, restore the original training weights
@@ -1298,6 +1349,7 @@ def train_loop(config):
             scheduler=noise_scheduler,
         )
         pipeline.save_pretrained(config["output_dir"])
+        wandb.finish()
 
 @torch.no_grad()
 def evaluate_and_save_samples(model, scheduler, config, epoch, device):
@@ -1457,7 +1509,7 @@ def save_denoising_trajectories(
     model.train()
 
 # Configuration
-SQUEEZE_STRENGTH = 1.0 # 0.0 = standard diffusion, higher = more squeezing
+SQUEEZE_STRENGTH = 0.0 # 0.0 = standard diffusion, higher = more squeezing
 config = {
     # Data
     "dataset_path": "./cifar10_data",
@@ -1477,7 +1529,7 @@ config = {
     "pca_samples": 50000,  # Number of samples for PCA calculation
 
     # Training
-    "num_epochs":  1,
+    "num_epochs":  30,
     "gradient_accumulation_steps": 1,
     "learning_rate": 1e-4,
     "lr_warmup_steps": 500,
@@ -1490,6 +1542,7 @@ config = {
     # Logging
     "mixed_precision": "fp16",
     "output_dir": "./ddpm_10kFID_s" + str(SQUEEZE_STRENGTH) +"_EMA_PyTorchInception",
+    "run_name": "ddpm_10kFID_s" + str(SQUEEZE_STRENGTH),
     "use_tensorboard": True,
     'num_save_samples': 36, # Number of images generated
     # Denoising trajectories

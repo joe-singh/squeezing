@@ -1,5 +1,6 @@
 # Squeezed Diffusion Models
 Code repository for _Squeezed Diffusion Models_
+
 Authors: [Jyotirmai Singh](jyotirmai.me), [Samar Khanna](https://www.samarkhanna.com/), [James Burgess](https://jmhb0.github.io/)
 
 ## Setup

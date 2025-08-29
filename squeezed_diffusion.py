@@ -1509,7 +1509,7 @@ def save_denoising_trajectories(
     model.train()
 
 # Configuration
-SQUEEZE_STRENGTH = 0.0 # 0.0 = standard diffusion, higher = more squeezing
+SQUEEZE_STRENGTH = -0.4 # 0.0 = standard diffusion, higher = more squeezing
 config = {
     # Data
     "dataset_path": "./cifar10_data",

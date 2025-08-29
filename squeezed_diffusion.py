@@ -31,7 +31,6 @@ from diffusers.optimization import get_cosine_schedule_with_warmup
 from accelerate import Accelerator
 from diffusers.utils import make_image_grid
 from diffusers.training_utils import EMAModel
-from diffusers import AutoencoderKL
 
 # Import for FID
 from torchvision.models import inception_v3
@@ -1510,7 +1509,7 @@ def save_denoising_trajectories(
     model.train()
 
 # Configuration
-SQUEEZE_STRENGTH = -0.4 # 0.0 = standard diffusion, higher = more squeezing
+SQUEEZE_STRENGTH = 0.0 # 0.0 = standard diffusion, higher = more squeezing
 config = {
     # Data
     "dataset_path": "./cifar10_data",
@@ -1530,7 +1529,7 @@ config = {
     "pca_samples": 50000,  # Number of samples for PCA calculation
 
     # Training
-    "num_epochs":  30,
+    "num_epochs":  10,
     "gradient_accumulation_steps": 1,
     "learning_rate": 1e-4,
     "lr_warmup_steps": 500,
@@ -1542,7 +1541,7 @@ config = {
 
     # Logging
     "mixed_precision": "fp16",
-    "output_dir": "./ddpm_10kFID_s" + str(SQUEEZE_STRENGTH) +"_EMA_PyTorchInception",
+    "output_dir": "./ddpm_10kFID_s" + str(SQUEEZE_STRENGTH) +"_TEST",
     "run_name": "ddpm_10kFID_s" + str(SQUEEZE_STRENGTH),
     "use_tensorboard": True,
     'num_save_samples': 36, # Number of images generated

@@ -31,6 +31,7 @@ from diffusers.optimization import get_cosine_schedule_with_warmup
 from accelerate import Accelerator
 from diffusers.utils import make_image_grid
 from diffusers.training_utils import EMAModel
+from diffusers import AutoencoderKL
 
 # Import for FID
 from torchvision.models import inception_v3
